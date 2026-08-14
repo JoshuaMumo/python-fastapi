@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "aiosqlite>=0.22.1",
     "fastapi>=0.141.1",
+    "fastapi-users-db-sqlalchemy>=7.0.0",
     "fastapi-users[sqlachemy]>=15.0.5",
     "imagekitio>=5.8.0",
     "python-dotenv>=1.2.2",
