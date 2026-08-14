@@ -81,6 +81,10 @@ async def get_feed(
 
     posts = result.scalars().all()
 
+    result = await session.execute(select(User))
+    users = [row[0] for row in result.all()]
+    user_dict = {u.id: u.email for u in users}
+
     posts_data = []
 
     for post in posts:
@@ -93,7 +97,7 @@ async def get_feed(
             "file_name": post.file_name,
             "created_at": post.created_at.isoformat(),
             "is_owner":post.user_id==user.id,
-            "email":post.user.email
+            "email":user_dict.get(post.user_id, "unknown")
         })
 
     return {"posts": posts_data}
@@ -102,23 +106,50 @@ async def get_feed(
 async def delete_post(
     post_id: str,
     session: AsyncSession = Depends(get_async_session),
-    user:User = Depends(current_active_user),
+    user: User = Depends(current_active_user),
 ):
     try:
         post_uuid = uuid.UUID(post_id)
 
-        result = await session.execute(select(Post).where(Post.id == post_uuid))
+        result = await session.execute(
+            select(Post).where(Post.id == post_uuid)
+        )
+
         post = result.scalars().first()
 
         if not post:
-            raise HTTPException(status_code=404, detail="Post not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Post not found"
+            )
 
         if post.user_id != user.id:
-            raise HTTPException(status_code=404, detail="You don't have permission to delete this post")
-            
+            raise HTTPException(
+                status_code=403,
+                detail="You don't have permission to delete this post"
+            )
+
         await session.delete(post)
         await session.commit()
 
-        return {"success": True, "message": "Post deleted successfully"}
+        return {
+            "success": True,
+            "message": "Post deleted successfully"
+        }
+
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid post ID"
+        )
+
+    except HTTPException:
+        raise
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail= str(e))
+        await session.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
